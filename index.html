@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crop modeling outputs</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .tooltip {
+            position: absolute;
+            background: white;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+            display: none;
+            pointer-events: none;
+        }
+        .line {
+            stroke: green;
+            stroke-width: 2;
+            fill: none;
+        }
+        .area {
+            fill: lightgray;
+            opacity: 0.5;
+        }
+        .dot {
+            fill: green;
+            stroke: white;
+            stroke-width: 2;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    
+    <div id="potential_yield_chart"></div>
+    <!-- Create a div where the graph will take place -->
+    <div id="my_dataviz"></div>
+    <div id="exceedance"></div>
+    
+    <select id="selectbutton"></select>
+    <div id="exceedance_agperiods"></div>
+    
+    
+    <!-- Scripts -->
+    <script src='scripts/js/heatmap.js'></script>
+    <script src='scripts/js/exceendance_plots.js'></script>
+    <script src='scripts/js/exceedance_plots_agperiods.js'></script>
+    <script src="scripts/js/pot_yield_plot.js"></script>
+    
+</body>
+</html>
