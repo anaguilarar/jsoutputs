@@ -63,7 +63,7 @@ async function rain_barplotcycle() {
 
         const initialChartOptions = {
             title: {
-                text: 'My Bar Chart'
+                text: 'Total precipitation at the moment of harvesting'
             },
             tooltip: {
             trigger: 'item',
@@ -78,9 +78,9 @@ async function rain_barplotcycle() {
             
             xAxis: {
                 type: 'time',
-                name: "label_plantingdate",
+                name: "Planting date",
                 nameLocation: 'center',
-                nameGap: 30,
+                nameGap: 40,
                 nameTextStyle: { // Nombre del eje
                     fontSize: 16,
                     fontWeight: 'bold',
@@ -115,11 +115,14 @@ async function rain_barplotcycle() {
                 max: Math.max(...data.map(d => d.hwah)),
                 orient: 'horizontal',
                 left: 'center',
-                bottom: -10,
+                top: 30,
                 text: ['High Yield', 'Low Yield'],
                 inRange: {
                     color: ['#d73027', '#fc8d59', '#fee08b', '#d9ef8b', '#91cf60', '#1a9850'] // blue→red
-                }
+                },
+                // 👇 Add a title for the color legend
+                formatter: value => `${value.toFixed(0)} kg/ha`, // optional number formatting
+                calculable: true
             },
             
             series: [{
