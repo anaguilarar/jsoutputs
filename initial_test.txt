@@ -1,0 +1,22 @@
+Atlas Project
+Initial exploration of the crop suitability changin ccrop tmaixmun temperature tolerance
+According to the conversations that we had in the last week, there were two goals that were addressed:
+1)	Getting familiar with the CropSuite code
+2)	Calculating the crop suitaibility for crops considering the scenario of a higher temperature tolerance.
+Following there is an explanation about the work that was held for both.
+CropSuite code
+The latest CropSuite version was released on April 2025. Considering that there were improvements on the code paralling process. Besides of optimizing the implementing the option of saving the downscaled climate files as NC type format, facilitating the file size. This version was the chosen for the analysis.
+Aimed at optimizing the time and resources emplyied for the anyalixng, I decided to make minor changes on the code:
+-	the parallel processing function for temperature bilinear and nearest neighborhoud interpolation
+-	Parallelizing the data reading step.
+-	Changing from ThreadsPoolExecutor, which limits parallelism, to ProcessPoolExecutor the daily climate suitability process
+-	
+Table 1. shows the time processing difference between the CropSuite version with and without the modifications mentioned above. The comparison was don for a single crop in an extent area of . using 10
+-	Allowing the option of manually setting the max number of workers if this is delacred then there is limit number of workers.  (concurrent features package allows 61 workers)
+-	Allowing the option of manually setting number of tiles in the configuration file
+
+Crop suitaibility on the scenario of new tolerant temperatures varieties insertion
+As initial work, Beans was considered as the crop of study. The Beans suitability temperature parameters are shown in figure 1(blue line). Where, least favorable conditions are set fo 8 and 30 degrees, and the optimal temperature is set on 18.0C. Considering the case of 35C a ratio was added to the original values in order to find the new values (red line).
+ 
+Crop suitability mapsthe climate 
+Figure 2 shows the crop suitabilitiy simuated for beans, using the climate model developed by the Max Planck Institute for Meteorology (MPI-M) for the climate scenario RCP8.5 based on SSP5. This climate model was chosen as an example. The climate data was already available on the server. 

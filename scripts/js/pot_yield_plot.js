@@ -1,3 +1,5 @@
+import * as echarts from 'https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.esm.min.js';
+
 function draw_potential_yield(text_class){
         
     const margin = { top: 20, right: 30, bottom: 50, left: 80 };
@@ -15,15 +17,15 @@ function draw_potential_yield(text_class){
         .attr("class", "tooltip");
 
     // 📌 Define a parser for MM-DD format (assume year 2024)
-    const parseDate = d3.timeParse("%m-%d");
+    const parseDate = d3.timeParse("%Y-%m-%d");
 
     // Load Data
     d3.csv("data/yield_data_"+text_class+".csv").then(data => {
         // Parse date and convert numeric values
         data.forEach(d => {
             //d.date = parseDate(d.doy);
-            d.date = parseDate(d.month_day);
-            d.date.setFullYear(2024); // Assume the same year for consistency
+            d.date = parseDate(d.pdat_year_month_day);
+            //d.date.setFullYear(2024); // Assume the same year for consistency
             d.response = +d.y;
             d.y_lower = +d.y_lower;
             d.y_upper = +d.y_upper;

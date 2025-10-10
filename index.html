@@ -1,58 +1,158 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crop modeling outputs</title>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-        }
-        .tooltip {
-            position: absolute;
-            background: white;
-            padding: 8px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
-            display: none;
-            pointer-events: none;
-        }
-        .line {
-            stroke: green;
-            stroke-width: 2;
-            fill: none;
-        }
-        .area {
-            fill: lightgray;
-            opacity: 0.5;
-        }
-        .dot {
-            stroke: white;
-            stroke-width: 0.05;
-            cursor: pointer;
-        }
-    </style>
-</head>
-<body>
+<html>
+    <head>
+        <title>ECharts Scatter with Dynamic Recommendations</title>
+        <meta charset="UTF-8">
+        <style>
+            /* ... (keep your existing body, #chart-container styles) ... */
+            body {
+                font-family: sans-serif;
+                line-height: 1.5;
+            }
+            #plot-echart {
+                width: 180%;
+                max-width: 800px;
+                height: 450px;
+                margin: 20px auto;
+                border: 1px solid #eee;
+                box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            }
+            #coffee_potential_yield_chart {
+                width: 180%;
+                max-width: 800px;
+                height: 450px;
+                margin: 20px auto;
+                border: 1px solid #eee;
+                box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            }
+    
+            #chart-coffee-container {
+                width: 180%;
+                max-width: 800px;
+                height: 450px;
+                margin: 20px auto;
+                border: 1px solid #eee;
+                box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            }
+            #coffee_potential_yield_chart_avg {
+                width: 180%;
+                max-width: 800px;
+                height: 450px;
+                margin: 20px auto;
+                border: 1px solid #eeeeee3b;
+                box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            }
+            #rain_barplot {
+                width: 180%;
+                max-width: 800px;
+                height: 450px;
+                margin: 20px auto;
+                border: 1px solid #eeeeee56;
+                box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            }
 
+            /* Container for the recommendation boxes */
+            #recommendations-container {
+                width: 80%;
+                max-width: 700px;
+                margin: 30px auto 20px auto;
+
+                display: flex; 
+                justify-content: space-between;
+
+                flex-wrap: wrap; 
+            }
+    
+            /* Style for each individual recommendation box */
+            .recommendation-box {
+                border: 1px solid #19923e;
+                background-color: #a4ff3d1c;
+                padding: 15px;
+                border-radius: 5px;
+                flex-basis: 5%;  
+                margin-bottom: 15px;
+                min-width: 160px; 
+            }
+    
+            /* Style for the title within each box */
+            .recommendation-box h4 {
+                margin-top: 0;
+                margin-bottom: 8px;
+                color: #086317;
+            }
+            
+            /* Style for the title within each box */
+            .note-box h4 {
+                margin-top: 0;
+                margin-bottom: 8px;
+                color: #000000;
+            }
+
+    
+        </style>
+    </head>
+<body>
+    
+
+    <div id="chart-coffee-container"></div>
+
+    <div id="rain_barplot"></div>
+
+    <!-- 
+    <div id="coffee_potential_yield_chart_avg"></div>
     <div id="coffee_potential_yield_chart"></div>
-    <div id="potential_yield_chart"></div>
+    <div id="plot-echart"></div>
+    <div id="chart-container"></div>
+    <div id="chart-coffee-container"></div>
+    
+    <script src="scripts/js/averaged_hdat_crop_yield.js"></script>
+    <div id="coffee_potential_yield_chart"></div>
+    <div id="potential_yield_chart"></div> -->
     <!-- Create a div where the graph will take place -->
-    <div id="my_dataviz"></div>
-    <div id="exceedance"></div>
+    <!--<div id="my_dataviz"></div> -->
+    <!-- <div id="exceedance"></div>
     
     <select id="selectbutton"></select>
-    <div id="exceedance_agperiods"></div>
-    
-    
+    <div id="exceedance_agperiods"></div> -->
+
     <!-- Scripts -->
-    <script src='scripts/js/coffee_pot_yield_plot.js'></script>
+    <!-- <script src='scripts/js/coffee_pot_yield_plot.js'></script>
     <script src='scripts/js/heatmap.js'></script>
     <script src='scripts/js/exceendance_plots.js'></script>
-    <script src='scripts/js/exceedance_plots_agperiods.js'></script>
-    <script src="scripts/js/pot_yield_plot.js"></script>
+    <script src='scripts/js/exceedance_plots_agperiods.js'>
+    
+    <script src="scripts/js/nitrogen_scatter_plot_.js"></script>
+    <script src="scripts/js/potential_yield_plot.js"></script>
+    <script src="scripts/js/coffee_plot_yield.js"></script>
+        <script src='scripts/js/coffee_plot_yield.js'></script>
+    <script src="scripts/js/averaged_hdat_crop_yield.js"></script>
+    </script> -->
+    
+    <div id="recommendations-container">
+        <div class="recommendation-box">
+            <h4><strong>Aplicación de Nitrógeno durante establecimiento:</strong></h4>
+            <p id="rec-box-1-content">Loading recommendation...</p>
+        </div>
+        <div class="recommendation-box">
+            <h4><strong>Primera Aplicación después de Floración:</strong></h4>
+            <p id="rec-box-2-content">Loading recommendation...</p>
+        </div>
+        <div class="recommendation-box">
+            <h4><strong>Segunda Aplicación después de Floración:</strong></h4>
+            <p id="rec-box-3-content">Loading recommendation...</p>
+        </div>
+        <div class="note-box">
+            <h4><strong>Recomendaciones:</strong></h4>
+            <p id="rec-note-content">Loading recommendation...</p>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/d3-regression@1.3.10/dist/d3-regression.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    
+    <script src="scripts/js/nitrogen_scatter_plot_coffee.js"></script>
+    <script src="scripts/js/end_cycle_precipitation.js"></script>
     
 </body>
 </html>
