@@ -1,0 +1,506 @@
+// --- Global Chart Instances ---
+let potentialyieldoniChart = null; // Chart A
+let potentialyieldweatherChart = null; // Chart B
+
+function triggerWeatherChartUpdate(cycleNumber) {
+    // Check if Chart B exists
+    if (typeof potentialyieldweatherChart === 'undefined' || potentialyieldweatherChart === null) {
+        console.warn("Weather chart is not initialized yet.");
+        return;
+    }
+
+    // The series names in Chart B are formatted as "ciclo 1", "ciclo 2", etc.
+    const targetName = "ciclo " + cycleNumber;
+
+    // Get current options to find all available legend names
+    const currentOption = potentialyieldweatherChart.getOption();
+    
+    // ECharts creates an array of legend objects, usually we want the first one
+    // or we can extract series names if legend.data is not explicitly set in the getter
+    const allSeriesNames = currentOption.series.map(s => s.name);
+    // Filter unique names to handle the fact you have multiple series (line + bar) with the same name
+    const uniqueNames = [...new Set(allSeriesNames)];
+
+    // Create the 'selected' object: { "ciclo 1": true, "ciclo 2": false, ... }
+    const newSelected = {};
+    uniqueNames.forEach(name => {
+        // Set TRUE for the clicked cycle, FALSE for everyone else
+        newSelected[name] = (name === targetName);
+    });
+
+    // Apply the update. ECharts will animate the transition.
+    potentialyieldweatherChart.dispatchAction({
+        type: 'legendSelect',
+        name: targetName
+    });
+    
+    // Alternatively, strictly force the selection state:
+    potentialyieldweatherChart.setOption({
+        legend: {
+            selected: newSelected
+        }
+    });
+}
+
+function calculateBoxPlotStats(data) {
+    if (data.length === 0) return { box: [], outliers: [] };
+    
+    data.sort((a, b) => a - b);
+    
+    const quantile = (arr, q) => {
+        const sorted = arr;
+        const pos = (sorted.length - 1) * q;
+        const base = Math.floor(pos);
+        const rest = pos - base;
+        if (sorted[base + 1] !== undefined) {
+            return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
+        } else {
+            return sorted[base];
+        }
+    };
+
+    const q1 = quantile(data, 0.25);
+    const median = quantile(data, 0.50);
+    const q3 = quantile(data, 0.75);
+    const iqr = q3 - q1;
+    const lowerBound = q1 - 1.5 * iqr;
+    const upperBound = q3 + 1.5 * iqr;
+
+    // Separate outliers and data within whiskers
+    const outliers = [];
+    const cleanData = [];
+    data.forEach(d => {
+        if (d < lowerBound || d > upperBound) outliers.push([d, 0]); // 0 is Y-index for horizontal plot
+        else cleanData.push(d);
+    });
+
+    const min = cleanData.length > 0 ? cleanData[0] : q1;
+    const max = cleanData.length > 0 ? cleanData[cleanData.length - 1] : q3;
+
+    return {
+        box: [min, q1, median, q3, max],
+        outliers: outliers
+    };
+}
+
+
+// --- Helper Functions ---
+function hexToRgb(hex) {
+    hex = hex.replace('#', '');
+    const bigint = parseInt(hex, 16);
+    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 };
+}
+
+function lightenColor(hex, factor = 0.3) {
+    const { r, g, b } = hexToRgb(hex);
+    return `rgb(${Math.min(255, Math.round(r + (255 - r) * factor))}, ${Math.min(255, Math.round(g + (255 - g) * factor))}, ${Math.min(255, Math.round(b + (255 - b) * factor))})`;
+}
+
+function darkenColor(hex, factor = 0.3) {
+    const { r, g, b } = hexToRgb(hex);
+    return `rgb(${Math.round(r * (1 - factor))}, ${Math.round(g * (1 - factor))}, ${Math.round(b * (1 - factor))})`;
+}
+
+function buildOniAreas(oni_data) {
+    const areasByCycle = {};
+    oni_data.forEach(d => {
+        const cycle = d.n_cycle?.toString().trim();
+        if (!cycle) return;
+        if (!areasByCycle[cycle]) areasByCycle[cycle] = {};
+        if (!areasByCycle[cycle][d.oni]) areasByCycle[cycle][d.oni] = { start: [], end: [] };
+        const date = new Date(d.date);
+        if (d.period === 'start') areasByCycle[cycle][d.oni].start.push(date);
+        else if (d.period === 'end') areasByCycle[cycle][d.oni].end.push(date);
+    });
+    return areasByCycle;
+}
+
+function makeMarkAreas(oniGrouped) {
+    const markAreas = [];
+    if (!oniGrouped) return markAreas;
+    Object.keys(oniGrouped).forEach(eventName => {
+        const starts = oniGrouped[eventName].start;
+        const ends = oniGrouped[eventName].end;
+        for (let i = 0; i < Math.min(starts.length, ends.length); i++) {
+            markAreas.push([{ xAxis: starts[i], label: { show: true, formatter: eventName } }, { xAxis: ends[i] }]);
+        }
+    });
+    return markAreas;
+}
+
+// --- Data Loading ---
+async function readcsv(pathdata) {
+    const response = await fetch(pathdata);
+    if (!response.ok) throw new Error("Error loading CSV file: " + pathdata);
+    const csvText = await response.text();
+    const parsed = Papa.parse(csvText, { header: true, dynamicTyping: true, skipEmptyLines: true });
+    return parsed.data;
+}
+
+// --- Chart B (Weather Data) ---
+async function draw_potentialyieldweather() {
+    const weatherData = await readcsv("data/weatherbytreatment.csv");
+    const floweringData = await readcsv("data/yield_data_clayloam.csv");
+    const oniData = await readcsv("data/oni_data_clayloam.csv");
+
+    const oniDataNino = oniData.filter(row => row['oni'] === 'El Niño');
+    const oniDataNina = oniData.filter(row => row['oni'] === 'La Niña');
+    const oniAreasByCycleNino = buildOniAreas(oniDataNino);
+    const oniAreasByCycleNina = buildOniAreas(oniDataNina);
+
+    const groupedData = {};
+    weatherData.forEach(r => {
+        const cycle = r.n_cycle?.toString().trim();
+        if (!cycle) return;
+        if (!groupedData[cycle]) groupedData[cycle] = [];
+        groupedData[cycle].push({
+            date: new Date(r.dummy_date),
+            tmean: (r.TMIN + r.TMAX) / 2,
+            rain: r.RAIN
+        });
+    });
+
+    Object.values(groupedData).forEach(arr => arr.sort((a, b) => a.date - b.date));
+
+    const cycleBaseColors = ['#377eb8', '#4daf4a', '#ff7f00', '#984ea3', '#e41a1c'];
+    const series = [];
+    series.push({
+        name: 'Flowering dates',
+        type: 'line',
+        data: [],
+        symbol: 'none',
+        lineStyle: {
+            type: 'dotted',
+            width: 2,
+            color: '#d31272'
+        },
+        toolbar: { show: false }
+    });
+
+    Object.keys(groupedData).forEach((cycle, colorIndex) => {
+        const values = groupedData[cycle];
+        console.log("Cycle:", cycle, "Base Year:", values[0].date);
+        const baseColor = cycleBaseColors[colorIndex % cycleBaseColors.length];
+        const tmeanColor = darkenColor(baseColor, 0.2);
+        const rainColor = baseColor;
+
+        //const baseYear = new Date(values[0].date + "T00:00").getFullYear();
+        const fl_dates = floweringData
+            .filter(d => d['n_cycle']?.toString() === cycle && d['daytoflower'] >= 1)
+            .map(d => new Date(d.nyear_month_day.replace(/-/g, '/')));
+
+        const markAreasNino = makeMarkAreas(oniAreasByCycleNino[cycle]);
+        const markAreasNina = makeMarkAreas(oniAreasByCycleNina[cycle]);
+
+        series.push(
+            {
+                name: `ciclo ${cycle}`,
+                type: 'line',
+                data: values.map(v => [v.date, v.tmean]),
+                itemStyle: { color: tmeanColor },
+                showSymbol: false,
+                markLine: {
+                    symbol: 'none',
+                    lineStyle: { type: 'dotted', width: 2, color: '#d31272' },
+                    label: { show: false },
+                    data: fl_dates.map(d => ({ xAxis: d }))
+                },
+                markArea: {
+                    silent: true,
+                    itemStyle: { color: lightenColor('#fc8d59', 0.8), opacity: 0.4 },
+                    data: markAreasNino
+                }
+            },
+            {
+                name: `ciclo ${cycle}`,
+                type: 'bar',
+                yAxisIndex: 1,
+                data: values.map(v => [v.date, v.rain]),
+                itemStyle: { color: rainColor, opacity: 0.3 },
+                markArea: {
+                    silent: true,
+                    itemStyle: { color: lightenColor('#91bfdb', 0.8), opacity: 0.4 },
+                    data: markAreasNina
+                }
+            }
+        );
+    });
+
+    const legendData = Object.keys(groupedData).map(c => 'ciclo ' + c);
+    const legendSelected = legendData.reduce((acc, name) => {
+        acc[name] = (name === 'ciclo 1');
+        return acc;
+    }, {});
+
+    const option = {
+        legend: { top: 20, type: 'scroll', data: legendData, selected: legendSelected },
+        grid: { top: 60, left: 80, right: 80, bottom: 80 },
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: { type: 'shadow' },
+            formatter: params => {
+                const date = new Date(params[0].value[0]).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+                let tooltipText = `<b>${date}</b><br/>`;
+                params.forEach(p => {
+                    const seriesName = p.seriesName;
+                    const value = p.value[1].toFixed(1);
+                    const marker = p.marker;
+                    if (p.componentSubType === 'line') tooltipText += `${marker} Temp: ${value} °C<br/>`;
+                    if (p.componentSubType === 'bar') tooltipText += `${marker} Rain: ${value} mm<br/>`;
+                });
+                return tooltipText;
+            }
+        },
+        xAxis: { type: "time", name: "Ciclo del Café (años)", nameLocation: "center", nameGap: 40,
+            axisLabel: {
+                        formatter: value => {
+                            const d = new Date(value);
+                            //const month = String(d.getMonth() + 1).padStart(2, "0");
+                            const month = d.toLocaleString('en-US', { month: 'short' });
+                            const year = d.getFullYear().toString().slice(-2);
+                            //return `Año ${year} ${month}`
+                            return `${year}`
+                            //return `${month}-${year}`;
+                        },
+                        fontSize: 13
+                    }
+        },
+        yAxis: [
+            { type: "value", name: "Temperatura (°C)", nameLocation: "middle", nameGap: 50 },
+            { type: "value", name: "Precipitación (mm)", position: "right", nameLocation: "middle", nameGap: 60 }
+        ],
+        series
+    };
+
+    const chartDom = document.getElementById("chartPotentialyieldweather");
+    if (!potentialyieldweatherChart) potentialyieldweatherChart = echarts.init(chartDom);
+    potentialyieldweatherChart.setOption(option);
+}
+
+// --- Chart A (Heatmap) ---
+function renderChart(rawData) {
+    const cycleBaseColors = [
+        'rgba(55, 126, 184, 0.2)',  
+        'rgba(77, 175, 74, 0.2)',   
+        'rgba(255, 127, 0, 0.2)',  
+        'rgba(152, 78, 163, 0.2)', 
+        'rgba(228, 26, 28, 0.2)'   
+    ];
+    const cycles = [...new Set(rawData.map(d => d.n_cycle))].sort((a, b) => a - b);
+    const allHarv = rawData.map(d => d.harvDM_f_hay).filter(x => typeof x === 'number' && !isNaN(x));
+    const globalMin = Math.min(...allHarv);
+    const globalMax = Math.max(...allHarv);
+    
+    // Configs
+    const n_cycles = cycles.length;
+    const rowHeightPct = 50 / n_cycles;
+    const gapPct = 2;
+    const colors = { 0: "#d31272", 1: "#e9e9e9", 2: "#fc8d59", 3: "#91bfdb" };
+    const phaseLabels = { 0: "Flowering", 1: "Neutral", 2: "El Niño", 3: "La Niña" };
+
+    const gridDefinitions = [], xAxisDefinitions = [], yAxisDefinitions = [], seriesDefinitions = [];
+
+    cycles.forEach((cycle, index) => {
+        const df = rawData.filter(d => d.n_cycle === cycle);
+        let phaseValues = df.map(row => {
+            let ph = row.Phase ? row.Phase.toString().trim() : "";
+            if (ph === 'Neutral') return 1;
+            if (ph.includes('Niño') || ph.includes('Nino')) return 2;
+            if (ph.includes('Niña') || ph.includes('Nina')) return 3;
+            return 1;
+        });
+
+        df.forEach((row, i) => {
+            if (row.DayFl === 1) {
+                const start = Math.max(0, i - 7);
+                const end = Math.min(phaseValues.length - 1, i + 7);
+                for (let k = start; k <= end; k++) phaseValues[k] = 0;
+            }
+        });
+
+        const heatmapData = phaseValues.map((val, i) => [i, 0, val, df[i].HDAT]);
+
+        const boxDataRaw = df.filter(r => r['DayHarv(1)'] > 0).map(r => r.harvDM_f_hay);
+        const boxStats = calculateBoxPlotStats(boxDataRaw);
+        const boxDetails = df.filter(r => r['DayHarv(1)'] > 0).map(r => ({ date: r.HDAT, value: r.harvDM_f_hay }));
+
+        const topPos = (5 + index * (rowHeightPct + gapPct)) + "%";
+        const height = rowHeightPct + "%";
+        const gridIndexHM = index * 2;
+        const gridIndexBP = index * 2 + 1;
+
+        gridDefinitions.push({ left: '8%', width: '65%', top: topPos, height: height, show: false }, { left: '76%', width: '15%', top: topPos, height: height, show: false });
+
+        const baseYear = new Date(df[0].HDAT + "T00:00").getFullYear();
+        xAxisDefinitions.push({
+            gridIndex: gridIndexHM,
+            type: 'value',
+            min: 0,
+            max: df.length,
+            show: index === n_cycles - 1,
+            name: index === n_cycles - 1 ? 'Ciclo del Café (años)' : '',
+            nameLocation: 'middle',
+            nameGap: 30,
+            interval: Math.floor(df.length / 6),
+            axisLabel: {
+                show: index === n_cycles - 1,
+                hideOverlap: true,
+                formatter: value => {
+                    const idx = Math.round(value);
+                    if (!df[idx]) return "";
+                    const date = new Date(df[idx].HDAT + "T00:00");
+                    const month = date.toLocaleString('en-US', { month: 'short' });
+                    const relativeYear = date.getFullYear() - baseYear;
+                    
+                    return `${String(relativeYear).padStart(2, '0')}`;
+                }
+            },
+            splitLine: { show: false },
+            axisTick: { show: index === n_cycles - 1 },
+            axisLine: { show: false }
+        });
+        
+        yAxisDefinitions.push({
+            gridIndex: gridIndexHM,
+            type: 'category',
+            data: [''],
+            axisTick: { show: false },
+            axisLine: { show: false },
+            axisLabel: { show: false },
+            name: `Ciclo ${cycle}`,
+            nameLocation: 'middle',
+            nameRotate: 0,
+            nameGap: 35,
+            nameTextStyle: { align: 'middle', verticalAlign: 'middle', color: '#666', fontSize: 16 }
+        });
+
+        xAxisDefinitions.push({
+            gridIndex: gridIndexBP,
+            type: 'value',
+            min: globalMin - 50,
+            max: globalMax + 50,
+            position: 'top',
+            show: true,
+            name: index === 0 ? 'Producción (kg/ha)' : '',
+            nameLocation: 'middle',
+            nameGap: 25,
+            nameTextStyle: { color: '#666' },
+            axisLabel: { show: index === 0, color: '#666' },
+            axisTick: { show: index === 0 },
+            axisLine: { show: index === 0, lineStyle: { color: '#ccc' } },
+            splitLine: { show: true, lineStyle: { color: '#E0E6F1' } }
+        });
+        
+        yAxisDefinitions.push({ gridIndex: gridIndexBP, type: 'category', show: false });
+
+        seriesDefinitions.push(
+            {
+                type: 'heatmap',
+                xAxisIndex: gridIndexHM,
+                yAxisIndex: gridIndexHM,
+                data: heatmapData,
+                animation: false,
+                tooltip: {
+                    position: 'top',
+                    formatter: params => {
+                        const value = params.data[2];
+                        const date = new Date(params.data[3] + "T00:00");
+                        const prettyDate = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+                        const marker = `<span style="display:inline-block;margin-right:5px;border-radius:10px;width:10px;height:10px;background-color:${params.color};"></span>`;
+                        return `${marker} <b>${phaseLabels[value]}</b><br/>${prettyDate}`;
+                    }
+                }
+            },
+            {
+                type: 'boxplot',
+                xAxisIndex: gridIndexBP,
+                yAxisIndex: gridIndexBP,
+                data: [boxStats.box],
+                itemStyle: { 
+                    color: cycleBaseColors[index % cycleBaseColors.length], 
+                    borderColor: '#333', 
+                    borderWidth: 1 },
+                tooltip: {
+                    show: false,
+                }
+            }
+        );
+
+        if (boxStats.outliers.length > 0) {
+            seriesDefinitions.push({
+                type: 'scatter',
+                xAxisIndex: gridIndexBP,
+                yAxisIndex: gridIndexBP,
+                data: boxStats.outliers,
+                itemStyle: { color: '#000', borderColor: '#000' },
+                symbolSize: 4
+            });
+        }
+    });
+
+    const option = {
+        title: { text: '', left: 'center', top: 5 },
+        tooltip: { trigger: 'item', confine: true },
+        visualMap: {
+            type: 'piecewise',
+            dimension: 2,
+            categories: [0, 1, 2, 3],
+            pieces: [
+                { value: 0, label: 'Flowering', color: colors[0] },
+                { value: 1, label: 'Neutral', color: colors[1] },
+                { value: 2, label: 'El Niño', color: colors[2] },
+                { value: 3, label: 'La Niña', color: colors[3] }
+            ],
+            orient: 'vertical',
+            right: 10,
+            top: 'center',
+            seriesIndex: seriesDefinitions.map((s, i) => s.type === 'heatmap' ? i : -1).filter(i => i >= 0)
+        },
+        grid: gridDefinitions,
+        xAxis: xAxisDefinitions,
+        yAxis: yAxisDefinitions,
+        series: seriesDefinitions
+    };
+
+    const chartDom = document.getElementById('chartPotentialyieldoni');
+    potentialyieldoniChart = echarts.init(chartDom);
+    potentialyieldoniChart.setOption(option);
+    
+    // --- ATTACH CLICK LISTENER ---
+    potentialyieldoniChart.on('click', function (params) {
+        if (params.componentType === 'series') {
+            // Your logic creates multiple series per cycle. 
+            // We need to find which 'cycle' this series belongs to.
+            // Example: cycle 1 uses series indices 0,1,2, cycle 2 uses 3,4,5 etc.
+            // A simpler way is to get the cycle number from the y-axis name.
+            const yAxisName = params.seriesName;
+            console.log("Clicked Series Name:", yAxisName);
+            // Extract the cycle number from a name like "Ciclo 1" or "ciclo 1"
+            const cycleMatch = yAxisName.match(/(\d+)/);
+            if (cycleMatch[0] == 0) {var sel = 1;}
+            if (cycleMatch[0] == 3) {var sel = 2;}
+            if (cycleMatch[0] == 5) {var sel = 3;}
+            if (cycleMatch[0] == 8) {var sel = 4;}
+            if (cycleMatch[0] == 11) {var sel = 5;}
+
+            if (cycleMatch) {
+                const selectedCycle = sel;
+                console.log("Clicked Cycle:", selectedCycle);
+                triggerWeatherChartUpdate(selectedCycle);
+            }
+        }
+    });
+
+    window.addEventListener('resize', () => potentialyieldoniChart.resize());
+}
+
+// --- Main Execution ---
+async function main() {
+  const oniData = await readcsv('data/coffee_oni.csv');
+  
+  // Render both charts
+  renderChart(oniData);
+  draw_potentialyieldweather();
+}
+
+main();

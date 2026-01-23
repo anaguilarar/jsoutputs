@@ -44,28 +44,52 @@ function filterDataGreatherThan(data, column, value) {
     return data.filter(item => item[column] >= value);
 }
 
-async function processAgronomicData(working_path, stxt_env, fn_code, 
-    month_day_key, quantile_value) {
-
-    
+async function processAgronomicData(working_path, stxt_env, fn_code, month_day_key, quantile_value) {
     const fn = `${working_path}nitrogen_results_${stxt_env}_${fn_code}.json`;
     console.log("Fetching data from:", fn);
     const target = 'crop_yield';
     let datanut_all;
     datanut_all = await loadData(fn);
-    
+    //console.log('datanut_all', datanut_all)
+    // get column names 
+
+    const columnNames = Object.keys(datanut_all[0]);
+    var  napps = columnNames.filter(x => x.startsWith("n")).length
+    const columnsForMedian = ['crop_yield', 'total_nitrogen'];
+    for(i = 0; i < napps; i++){
+        columnsForMedian.push(`day${i+1}`)
+        columnsForMedian.push(`n${i+1}`)
+    };
+
     const filteredData = filterData(datanut_all, "month_day", month_day_key);
     var yield_base = filterData(filteredData, "total_nitrogen", 0);
     yield_base = yield_base.map(row => parseFloat(row[target])).filter(val => !isNaN(val));
+    console.log(' ***> yield_base', yield_base)
     const targetValues = filteredData.map(row => parseFloat(row[target])).filter(val => !isNaN(val));
     const quantileThreshold = calculateQuantile(targetValues, quantile_value);
 
     let df_subsetbestyields = filterDataLessThan(filteredData, 'crop_yield', quantileThreshold);
     df_subsetbestyields = filterDataGreatherThan(df_subsetbestyields, 'crop_yield', 0);
-    const yieldsForCat = df_subsetbestyields.map(row => parseFloat(row[target])).filter(val => !isNaN(val)).sort((a,b) => a-b);
-    const q1_thresh = calculateQuantile(yieldsForCat, 2/7);
-    const q2_thresh = calculateQuantile(yieldsForCat, 3/7);
+    //const yieldsForCat = df_subsetbestyields.map(row => parseFloat(row[target])).filter(val => !isNaN(val)).sort((a,b) => a-b);
+    //const q1_thresh = calculateQuantile(yieldsForCat, 1 / 10);
+    
+    var yield_value = df_subsetbestyields.map(row => {
+        var crop_yield = parseFloat(row[target])
+        return crop_yield
+    });
 
+    let minY = Math.min(...yield_value);
+    let maxY = Math.max(...yield_value);
+    let seriesData_n = yield_value.map(p => [p,(p - minY) / (maxY - minY)]);
+    var m = seriesData_n.filter(row => row[1]<0.90).sort((a,b) => b[1]-a[1]);
+    const yieldsForCat = df_subsetbestyields.map(row => parseFloat(row[target])).filter(val => !isNaN(val)).sort((a,b) => a-b);
+    const q1_thresh = calculateQuantile(yieldsForCat, 1/10);
+    //const q2_thresh = calculateQuantile(yieldsForCat, 3/7);
+    const q2_thresh = m[0][0];
+    var pnitrogen= 0.1
+    var targetmaxval = Math.max(...yieldsForCat);
+    //var median_range_variation = ((q1_thresh) / (targetmaxval)) * 100
+    //console.log('q1_thresh: ', q1_thresh, ' q2_thresh: ', q2_thresh)
     const datanut = df_subsetbestyields.map(row => {
         const yieldVal = parseFloat(row[target]);
         let category = 'High'; // Default to High
@@ -80,34 +104,41 @@ async function processAgronomicData(working_path, stxt_env, fn_code,
 
     var app_rec = {};
     for (const val of ['Low', 'Medium', 'High']) {
-        //console.log("\nCategory:", val);
-        const datanutsubset = datanut.filter(row => row.category === val);
+        var datanutsubset = datanut.filter(row => row.category === val);
         if (datanutsubset.length === 0) {
             console.log(`No data in category: ${val}`);
             continue;
         }
+        
+        datanutsubset = datanutsubset.sort((a,b) => a.total_nitrogen-b.total_nitrogen);
+        
+        const datanutsubsetv = datanutsubset[0];
 
-        const columnsForMedian = ['day1', 'day2', 'day3', 'n1', 'n2', 'n3', 'crop_yield', 'total_nitrogen'];
-        const datanutsubsetv = {};
+        // for (const col of columnsForMedian) {
+        //     const colValues = datanutsubset.map(row => parseFloat(row[col])).filter(num => !isNaN(num));
+        //     // datanutsubsetv[col] = calculateMedian(colValues);
+        //     datanutsubsetv[col] = calculateQuantile(colValues, pnitrogen);
+        // }
 
-        for (const col of columnsForMedian) {
-            const colValues = datanutsubset.map(row => parseFloat(row[col])).filter(num => !isNaN(num));
-            datanutsubsetv[col] = calculateMedian(colValues);
-        }
         let yield_improvement = ((datanutsubsetv['crop_yield'] - yield_base) / yield_base) * 100
+        let aggregated_data = []
+        for(i = 0; i<napps; i++){
+            aggregated_data.push([datanutsubsetv[`day${i+1}`], datanutsubsetv[`n${i+1}`]])
+        };
+        aggregated_data.push([datanutsubsetv['crop_yield'], yield_improvement]);
+        
+        app_rec[val] = aggregated_data
 
-        //console.log("Median values for category:", datanutsubsetv);
-        app_rec[val] = [[datanutsubsetv['day1'],datanutsubsetv['n1']],
-                        [datanutsubsetv['day2'],datanutsubsetv['n2']],
-                        [datanutsubsetv['day3'],datanutsubsetv['n3']],
-                        [datanutsubsetv['crop_yield'], yield_improvement]];
         // messages_tp_eng.push(...) or messages_tp_sp.push(...) based on datanutsubsetv
     }
-    const output = { best_yield: app_rec['High'] , secondbest_yield: app_rec['Low'], 
-        filtered_data: datanut, thresholds: [q1_thresh, q2_thresh, quantileThreshold]};
-    //console.log("Final output object:", output);
+    
+    const output = {
+        best_yield: app_rec['High'], secondbest_yield: app_rec['Low'],
+        filtered_data: datanut, thresholds: [q1_thresh, q2_thresh, quantileThreshold]
+    };
+    console.log(output)
 
-    return output;
+    return [output, napps];
 }
 
 function formatString(template, values) {
@@ -120,7 +151,7 @@ function formatString(template, values) {
     return formattedString;
 }
 
-function application_messages(best_yield_summary, pH, som) {
+function application_messages(best_yield_summary, month_day_key, lang, pH, som, farmer_yield, farmer_nitrogen) {
     const tr_dict = {
         'en': {
             'start': "For the {app_num_str} application,",
@@ -129,78 +160,104 @@ function application_messages(best_yield_summary, pH, som) {
             'order': ['first', 'second', 'third'],
             'join': 'and',
             'default': "No relevant recommendation could be identified.",
-            'note1': `<li>These recommendations can increase potential yield by <strong>{yield_percentage} %</strong> compared to a crop without fertilizer application.</li>
-            <li>This increase is achieved by applying a total of <strong>{total_nitrogen} kg/ha</strong>, which can be distributed according to your agronomic management.</li>`,
-            'notephlow': `<li>The pH value is <strong>{pH}</strong>, indicating soil acidity issues. A correction is recommended, such as liming.</li>`,
-            'notephhigh': `<li>The pH value is <strong>{pH}</strong>, indicating that the soil is alkaline. It is recommended to use highly assimilable sources and/or organic fertilization.</li>`,
-            'noteph': `<li>The pH value is <strong>{pH}</strong>.</li>`,
-            'notesom': '<li>The organic matter value is <strong>{som} %</strong>.</li>',
+            'note00': `<li>With these recommendations, yield could increase by approximately <strong>{yield_improvement} %</strong> compared to the yield obtained from the crop under the initially entered agronomic management conditions.</li>`,
+            'note01': `<li>No nitrogen fertilization strategies were identified that improve the simulated yield under the initially entered agronomic management conditions.</li>`,
+            'note1': `<li>Compared to a crop without nitrogen fertilization, these recommendations could increase yield by approximately <strong>{yield_percentage} %</strong>.</li> <li>This increase would be achieved by applying a total of <strong>{total_nitrogen} kg N/ha</strong>, which can be distributed according to your agronomic management.</li>`,
+            'notephlow': `<li>The estimated average pH value is approximately <strong>{pH}</strong>. This pH indicates soil acidity problems, and correction is recommended, such as liming.</li>`,
+            'notephhigh': `<li>The estimated average pH value is approximately <strong>{pH}</strong>. This pH indicates the soil is alkaline. It is recommended to use highly assimilable sources and/or apply organic fertilization.</li>`,
+            'noteph': `<li>The estimated average pH value is approximately <strong>{pH}</strong>. It is within an optimal range.</li>`,
+            'notesom': '<li>The estimated average organic matter value is approximately <strong>{som} %</strong>.</li>',
             'note2': `<li>The analyses were performed for the planting date <strong>{month_day}</strong> based on the <strong> specific soil and historical climate conditions (1990-2024) of this village</strong>.</li><br>
-                <strong>Important:</strong> Use this guide as a reference and always combine it with <strong>the advice of a local expert.</strong>`
-            },
-        'sp': {
+                <div class='div_small'><strong>Important:</strong> Use this guide as a reference and always combine it with <strong>the advice of a local expert.</strong><div>`
+        },
+        'es': {
             'start': 'Para la {app_num_str} applicación,',
             'day': "Aplicar en el día {day_value} después de siembra, ",
             'amount': "usar {n_value} kg/ha de nitrógeno",
             'order': ['primera', 'segunda', 'tercera'],
             'join': 'y',
             'default': "No se pudo identificar una recomendación relevante.",
-            'note0': `<li>Estas recomendaciones permiten aumentar el rendimiento en un <strong>{yield_percentage} %</strong>, respecto al cultivo simulado. </li> <li>Este incremento se obtiene aplicando un total de <strong>{total_nitrogen} kg/ha</strong>, que puede ser distribuido de acuerdo a su manejo agrónomico.`,
-            
-            'note1': `<li>Estas recomendaciones permiten aumentar el rendimiento en un <strong>{yield_percentage} %</strong>, respecto a un cultivo sin aplicación de fertilizantes. </li> <li>Este incremento se obtiene aplicando un total de <strong>{total_nitrogen} kg/ha</strong>, que puede ser distribuido de acuerdo a su manejo agrónomico.`,
-            'notephlow': `<li>El valor de pH es <strong>{pH}</strong>, este valor de pH indica problemas de acidez en el suelo, se recomienda una correción, como por ejemplo encalamiento.`,
-            'notephhigh': `<li>El valor de pH es <strong>{pH}</strong>, este valor de pH indica que el suelo es alcalino, se recomienda usar fuentes de alta asimilicaión y/o usar fertilización orgánica.`,
-            'noteph': `<li>El valor de pH es <strong>{pH}</strong>.`,
-            'notesom': `<li>El valor de materia orgánica es <strong>{som} %</strong>.`,
-            'note2': `<li>Los análisis se realizaron para la fecha de siembra <strong>{month_day}</strong> según las <strong>condiciones específicas de suelo y clima promedio histórico (1990-2024) de esta aldea</strong>.</li><br>
-                <strong>Importante:</strong> Use esta guía como una referencia y combínela siempre con el <strong>asesoramiento de un experto local</strong>.`
 
-            }
+            'note00': `<li>Con estas recomendaciones, el rendimiento podría aumentar aproximadamente un <strong>{yield_improvement} %</strong> en comparación con el rendimiento obtenido del cultivo bajo las condiciones manejo agronómico inicialmente ingresadas.</li>`,
+            'note01': `<li>No se identificaron estrategias de fertilización con nitrógeno que mejoren el rendimiento simulado con las condiciones de manejo agronómico inicialmente ingresadas. </li>`,
+            'note1': `<li>Comparado con un cultivo sin fertilización nitrogenada, estas recomendaciones podrían aumentar el rendimiento aproximadamente un <strong>{yield_percentage} %</strong>. </li> <li>Este incremento se obtendría aplicando un total de <strong>{total_nitrogen} kg N/ha</strong>, que puede ser distribuido de acuerdo a su manejo agrónomico.`,
+            'notephlow': `<li>El valor promedio de pH estimado es aproximadamente <strong>{pH}</strong>, este valor de pH indica problemas de acidez en el suelo, se recomienda una correción, por ejemplo encalamiento.`,
+            'notephhigh': `<li>El valor promedio de pH estimado es aproximadamente <strong>{pH}</strong>, este valor de pH indica que el suelo es alcalino, se recomienda usar fuentes de alta asimilicaión y/o usar fertilización orgánica.`,
+            'noteph': `<li>El valor promedio de pH estimado es aproximadamente <strong>{pH}</strong>. Se encuentra en un rango óptimo`,
+            'notesom': `<li>El valor promedio de materia orgánica estimada es aproximadamente <strong>{som} %</strong>.`,
+            'note2': `<li>Los análisis se realizaron para la fecha de siembra <strong>{month_day}</strong> según las <strong>condiciones específicas de suelo y clima promedio histórico (1990-2024) de esta aldea</strong>.</li><br>
+                <div class='div_small'><strong>Importante:</strong> Use esta guía como una referencia y combínela siempre con el <strong>asesoramiento de un experto local.</strong><div>`
+
+        }
     };
+
+    let np = best_yield_summary.length-1
+    console.log(' best_yield_summary', best_yield_summary, np)
+
+    let n_simulatedyield = best_yield_summary[np][0];
+
+    let yield_improvement = ((n_simulatedyield - farmer_yield) / farmer_yield) * 100;
+    yield_improvement = yield_improvement < 0 ? 0 : parseFloat(yield_improvement.toFixed(1));
+    console.log(' yield_improvement', yield_improvement)
     
-    const lang = 'eng'
-    const month_day_key = params['month_day'];
 
     let yield_split_results = best_yield_summary;
-    
+
     let sentences = {};
     const varnames = ['sentence1', 'sentence2', 'sentence3'];
-    for(let appIndex = 0; appIndex<3; appIndex++){
+    for (let appIndex = 0; appIndex < 3; appIndex++) {
         let sentenceParts = [];
         let appDay = yield_split_results[appIndex][0];
         let appAmount = yield_split_results[appIndex][1];
         //sentenceParts.push(formatString(tr_dict[lang]['start'], { app_num_str: tr_dict[lang].order[appIndex]}));
-        if(yield_split_results[3][1]>5){
-            sentenceParts.push(formatString(tr_dict[lang]['day'], { day_value: appDay.toFixed(0)}));
-            sentenceParts.push(formatString(tr_dict[lang]['amount'], { n_value: appAmount.toFixed(0)}));
-        }else{
+        if (yield_improvement > 1 && yield_split_results[np][1] > 5) {
+            sentenceParts.push(formatString(tr_dict[lang]['day'], { day_value: appDay.toFixed(0) }));
+            sentenceParts.push(formatString(tr_dict[lang]['amount'], { n_value: appAmount.toFixed(0) }));
+        } else {
             sentenceParts.push(tr_dict[lang]['default']);
             sentenceParts.push(['']);
         }
 
-        sentences[varnames[appIndex]]=  sentenceParts;
+        sentences[varnames[appIndex]] = sentenceParts;
     }
-    var total_nitrogen = yield_split_results[0][1]+yield_split_results[1][1]+yield_split_results[2][1];
-    var month_day_string = formatDateString(month_day_key, lang);
+    var total_nitrogen;
+    if(np == 2){
+        total_nitrogen = yield_split_results[0][1] + yield_split_results[1][1] + yield_split_results[2][1];
+    }
+    else{
+        total_nitrogen = yield_split_results[0][1] + yield_split_results[1][1];
+    }
+    
+    var month_day_string = formatDateString(month_day_key, 'es');
     var final_message = formatString('');
-    if(yield_split_results[3][1]>5){
-        final_message = final_message + formatString(tr_dict[lang]['note1'], { yield_percentage: yield_split_results[3][1].toFixed(1),
+
+    if (yield_improvement > 1) {
+        final_message = final_message + formatString(tr_dict[lang]['note00'], {
+            yield_improvement: yield_improvement
+        });
+    } else {
+        final_message = final_message + formatString(tr_dict[lang]['note01'], {});
+    }
+
+    if (yield_split_results[np][1] > 5 && farmer_nitrogen !== 0) {
+        final_message = final_message + formatString(tr_dict[lang]['note1'], {
+            yield_percentage: yield_split_results[np][1].toFixed(1),
             total_nitrogen: total_nitrogen.toFixed(0)
         });
     }
-    if(pH < 6){
-        final_message = final_message + formatString(tr_dict[lang]['notephlow'], { pH: pH.toFixed(1)});
-    }else if (pH > 7){
-        final_message = final_message + formatString(tr_dict[lang]['notephhigh'], { pH: pH.toFixed(1)});
-    }else{
-        final_message = final_message + formatString(tr_dict[lang]['noteph'], { pH: pH.toFixed(1)});
+    if (pH < 6) {
+        final_message = final_message + formatString(tr_dict[lang]['notephlow'], { pH: pH.toFixed(1) });
+    } else if (pH > 7) {
+        final_message = final_message + formatString(tr_dict[lang]['notephhigh'], { pH: pH.toFixed(1) });
+    } else {
+        final_message = final_message + formatString(tr_dict[lang]['noteph'], { pH: pH.toFixed(1) });
     }
-    final_message = final_message + formatString(tr_dict[lang]['notesom'], { som: som.toFixed(2)});
+    final_message = final_message + formatString(tr_dict[lang]['notesom'], { som: som.toFixed(1) });
 
     final_message = final_message + formatString(tr_dict[lang]['note2'], {
-            month_day: month_day_string
-        });
-    sentences['final_note'] = final_message
+        month_day: month_day_string
+    });
+    sentences['final_note'] = final_message;
     return sentences;
     
 }
@@ -249,11 +306,11 @@ function formatDateString(dateStr, language) {
       return dateStr; // Or return null, or throw an error
     }
 
-    const monthNames = {'eng': [
+    const monthNames = {'en': [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
     ],
-    'spn': ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    'es': ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
         "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
     ]};
 
@@ -263,8 +320,8 @@ function formatDateString(dateStr, language) {
   }
   
 
-const soil_texture = 'clay';
-const month_day_key = "06-13"; 
+const soil_texture = 'clayloam';
+let month_day_key = "08-15"; 
 const crop = 'bean';
 //const cultivar = 'IB1072'; 
 const cultivar = 'IB0006'; 
@@ -305,28 +362,40 @@ async function table_properties(working_path, stxt_env, crop){
 document.addEventListener('DOMContentLoaded', async () => {
 
 
-
-    const lang = params['language'];
     const working_path = params['working_path'];
     const stxt_env = params['soiltxt_env'];
-    const month_day_key = params['month_day'];
+    month_day_key = params['month_day'];
     const fn_code = params['crop_cultivar'];
     const crop = 'maize'
     const quantile_value = params['yield_upper_threshold'];
-    let yield_split_results = await processAgronomicData(working_path, stxt_env, 
+    let results = await processAgronomicData(working_path, stxt_env, 
         fn_code, month_day_key, 
         quantile_value);
+    let yield_split_results = results[0]
+    console.log('----> yield_split_results', yield_split_results)
+    let napps = results[1]
     const sim_values = await table_properties(working_path, stxt_env, crop)
     
     const farmer_nitrogen = sim_values['total_nitrogen']; // ***** ESTO CAMBIA CON LOS DATOS DE LA SIMULACION
     const farmer_yield = 1000; // ***** ESTO CAMBIA CON LOS DATOS DE LA SIMULACION
     
     console.log("Table values:", sim_values['pH']);
+    var total_nitrogen;
+    var yield_percentage;
+    var best_yield; 
 
-    var total_nitrogen = yield_split_results['best_yield'][0][1]+yield_split_results['best_yield'][1][1]+yield_split_results['best_yield'][2][1];
-    var yield_percentage = yield_split_results['best_yield'][3][1];
+    if(napps == 3){
+        total_nitrogen = yield_split_results['best_yield'][0][1]+yield_split_results['best_yield'][1][1]+yield_split_results['best_yield'][2][1];
+        yield_percentage = yield_split_results['best_yield'][3][1];
+        best_yield = yield_split_results['best_yield'][3][0];
+    }else{
+        total_nitrogen = yield_split_results['best_yield'][0][1]+yield_split_results['best_yield'][1][1];
+        yield_percentage = yield_split_results['best_yield'][2][1];
+        best_yield = yield_split_results['best_yield'][2][0];
+    }
+    
+    
     //var total_nitrogen2 = yield_split_results['secondbest_yield'][0][1]+yield_split_results['secondbest_yield'][1][1]+yield_split_results['secondbest_yield'][2][1]
-    var best_yield = yield_split_results['best_yield'][3][0];
     //var best_yield2 = yield_split_results['secondbest_yield'][3][0]
     var thresholds = yield_split_results['thresholds'];
     const filteredData = yield_split_results['filtered_data'];
@@ -373,14 +442,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     let smoothedvalues = getSmoothValues(d3Data, bandwidth);
     var best_point_data = [];
     if(yield_percentage>5){
-        best_point_data = [total_nitrogen,best_yield,
+        if( napps == 3){
+            best_point_data = [total_nitrogen,best_yield,
             yield_split_results['best_yield'][0][0],yield_split_results['best_yield'][0][1], //app 1
             yield_split_results['best_yield'][1][0],yield_split_results['best_yield'][1][1], //app 1
             yield_split_results['best_yield'][2][0],yield_split_results['best_yield'][2][1] //app 1
-        ]
+            ]   
+        }
+        else{
+            best_point_data = [total_nitrogen,best_yield,
+            yield_split_results['best_yield'][0][0],yield_split_results['best_yield'][0][1], //app 1
+            yield_split_results['best_yield'][1][0],yield_split_results['best_yield'][1][1], //app 1
+            ]
+        }
+        
     }
      
-
+    console.log('----> best_point_data', best_point_data)
     const initialChartOptions = {
         tooltip: {
             trigger: 'item',
@@ -502,12 +580,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const myChart = initChart('chart-container', initialChartOptions);
 
     console.log('Recommendations Logic: Script started.');
-    let recommendations = application_messages(yield_split_results['best_yield'], sim_values['pH'], sim_values['som']);
-    for (let i = 1; i <= 3; i++){
+    let recommendations = application_messages(yield_split_results['best_yield'], month_day_key, 'es',sim_values['pH'], sim_values['som'], 1000, 10);
+    
+    for (let i = 1; i <= napps; i++){
         var recElement = document.getElementById('rec-box-'+i+'-content');
         var sentence = `${recommendations['sentence'+i][0]}${recommendations['sentence'+i][1]}`;
         recElement.textContent = sentence;
     }
+    
 
     var noteElement = document.getElementById('rec-note-content');
     var sentence = recommendations['final_note'];

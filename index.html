@@ -25,6 +25,24 @@
                 border: 1px solid #eee;
                 box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
             }
+            
+            #chartPotentialyieldweather {
+                width: 180%;
+                max-width: 800px;
+                height: 450px;
+                margin: 20px auto;
+                border: 1px solid #eee;
+                box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            }
+
+            #chart-container {
+                width: 180%;
+                max-width: 800px;
+                height: 450px;
+                margin: 20px auto;
+                border: 1px solid #eee;
+                box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            }
     
             #chart-coffee-container {
                 width: 180%;
@@ -42,6 +60,15 @@
                 border: 1px solid #eeeeee3b;
                 box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
             }
+            #chartPotentialyieldoni {
+                width: 280%;
+                max-width: 1000px;
+                height: 450px;
+                margin: 30px auto;
+                border: 1px solid #eeeeee3b;
+                box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            }
+
             #rain_barplot {
                 width: 180%;
                 max-width: 1000px;
@@ -95,7 +122,7 @@
 <body>
     
 
-    <div id="rain_barplot"></div>
+    <!-- <div id="rain_barplot"></div> -->
 
     <!-- 
     <div id="chart-coffee-container"></div>
@@ -122,13 +149,17 @@
     <script src='scripts/js/exceendance_plots.js'></script>
     <script src='scripts/js/exceedance_plots_agperiods.js'>
     
-    <script src="scripts/js/nitrogen_scatter_plot_.js"></script>
+    
     <script src="scripts/js/potential_yield_plot.js"></script>
     <script src="scripts/js/coffee_plot_yield.js"></script>
         <script src='scripts/js/coffee_plot_yield.js'></script>
     <script src="scripts/js/averaged_hdat_crop_yield.js"></script>
     </script> -->
-<!--     
+    <!-- <div id="coffee_potential_yield_chart_avg"></div> -->
+    <div id="chartPotentialyieldoni" style="width: 100%; height: 800px;"></div>
+    <div id="chartPotentialyieldweather"></div>
+    
+    <!-- <div id="chart-container"></div>
     <div id="recommendations-container">
         <div class="recommendation-box">
             <h4><strong>Aplicación de Nitrógeno durante establecimiento:</strong></h4>
@@ -147,13 +178,18 @@
             <p id="rec-note-content">Loading recommendation...</p>
         </div>
     </div> -->
-    
-    <script src="https://cdn.jsdelivr.net/npm/d3-regression@1.3.10/dist/d3-regression.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js"></script>
+    <!-- <script src="scripts/js/nitrogen_scatter_plot_.js"></script> -->
+     <script src="https://cdn.jsdelivr.net/npm/echarts@5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js"></script>
+    <script src="scripts/js/coffee_seasonality_both.js"></script> 
+    <!-- <script src="scripts/js/averaged_hdat_crop_yield.js"></script> -->
+    <!-- <script src="scripts/js/weather_crop_pattern.js"></script> -->
+    <script src="https://cdn.jsdelivr.net/npm/d3-regression@1.3.10/dist/d3-regression.min.js"></script>
     
-
-    <script src="scripts/js/end_cycle_precipitation.js"></script>
+    
+    <!-- <script src="scripts/js/end_cycle_precipitation.js"></script> -->
     
 </body>
 </html>

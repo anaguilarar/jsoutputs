@@ -51,16 +51,6 @@ async function rain_barplotcycle() {
 
         console.log(data)
 
-        var dataplot = {
-                    name: 'plot',
-                    type: 'bar',
-                    showSymbol: true,
-                    symbolSize: 4,
-                    data: rain_cycledata.map(item => [item.pdat_year_month_day, item.HWAH]),
-                    lineStyle: { width: 1.5 },
-                  
-                };
-
         const initialChartOptions = {
             title: {
                 text: 'Total precipitation at the moment of harvesting'
