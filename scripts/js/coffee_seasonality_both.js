@@ -9,32 +9,27 @@ function triggerWeatherChartUpdate(cycleNumber) {
         return;
     }
 
-    // The series names in Chart B are formatted as "ciclo 1", "ciclo 2", etc.
-    const targetName = "ciclo " + cycleNumber;
+    const targetName = "escenario " + cycleNumber;
 
-    // Get current options to find all available legend names
+    
     const currentOption = potentialyieldweatherChart.getOption();
     
-    // ECharts creates an array of legend objects, usually we want the first one
-    // or we can extract series names if legend.data is not explicitly set in the getter
     const allSeriesNames = currentOption.series.map(s => s.name);
-    // Filter unique names to handle the fact you have multiple series (line + bar) with the same name
     const uniqueNames = [...new Set(allSeriesNames)];
 
-    // Create the 'selected' object: { "ciclo 1": true, "ciclo 2": false, ... }
     const newSelected = {};
     uniqueNames.forEach(name => {
-        // Set TRUE for the clicked cycle, FALSE for everyone else
+    
         newSelected[name] = (name === targetName);
     });
 
-    // Apply the update. ECharts will animate the transition.
+    
     potentialyieldweatherChart.dispatchAction({
         type: 'legendSelect',
         name: targetName
     });
     
-    // Alternatively, strictly force the selection state:
+    
     potentialyieldweatherChart.setOption({
         legend: {
             selected: newSelected
@@ -108,9 +103,9 @@ function buildOniAreas(oni_data) {
         if (!cycle) return;
         if (!areasByCycle[cycle]) areasByCycle[cycle] = {};
         if (!areasByCycle[cycle][d.oni]) areasByCycle[cycle][d.oni] = { start: [], end: [] };
-        const date = new Date(d.date);
-        if (d.period === 'start') areasByCycle[cycle][d.oni].start.push(date);
-        else if (d.period === 'end') areasByCycle[cycle][d.oni].end.push(date);
+        //const date = new Date(d.date);
+        if (d.period === 'start') areasByCycle[cycle][d.oni].start.push(d.date);
+        else if (d.period === 'end') areasByCycle[cycle][d.oni].end.push(d.date);
     });
     return areasByCycle;
 }
@@ -127,6 +122,43 @@ function makeMarkAreas(oniGrouped) {
     });
     return markAreas;
 }
+const detectEnsoBoundaries = (cycleData, cycleNumber) => {
+    const boundaries = [];
+    const dfLength = cycleData.length;
+
+    if (dfLength < 3) return boundaries; // Need at least 3 data points (prev, current, next)
+
+    for (let i = 1; i < dfLength - 1; i++) {
+        const current = cycleData[i];
+        const prev = cycleData[i - 1];
+        const next = cycleData[i + 1];
+               
+        if (current.Phase === 'Neutral') {
+            continue;
+        }
+
+        if (prev.Phase === 'Neutral') {
+            
+            boundaries.push({
+                oni: current.Phase,
+                date: current.day_index, // Use the current date for the START boundary
+                period: 'start',
+                n_cycle: cycleNumber // Add cycle number for later grouping
+            });
+        } else if (next.Phase === 'Neutral') {
+            boundaries.push({
+                oni: current.Phase,
+                date: next.day_index, // Use the next date for the END boundary
+                period: 'end',
+                n_cycle: cycleNumber
+            });
+        }
+    }
+
+    return boundaries;
+};
+
+
 
 // --- Data Loading ---
 async function readcsv(pathdata) {
@@ -138,65 +170,96 @@ async function readcsv(pathdata) {
 }
 
 // --- Chart B (Weather Data) ---
-async function draw_potentialyieldweather() {
-    const weatherData = await readcsv("data/weatherbytreatment.csv");
-    const floweringData = await readcsv("data/yield_data_clayloam.csv");
-    const oniData = await readcsv("data/oni_data_clayloam.csv");
+async function draw_potentialyieldweather(weatherData) {
 
-    const oniDataNino = oniData.filter(row => row['oni'] === 'El Niño');
-    const oniDataNina = oniData.filter(row => row['oni'] === 'La Niña');
-    const oniAreasByCycleNino = buildOniAreas(oniDataNino);
-    const oniAreasByCycleNina = buildOniAreas(oniDataNina);
+    const parseDate = (dateStr) => {
+        const parts = dateStr.split('-');
+        return new Date(parts[0], parts[1] - 1, parts[2]);
+    };
 
     const groupedData = {};
+    let absoluteStartTime = Infinity;
+    weatherData.forEach(r => {
+        const d = parseDate(r.dummy_date).getTime();
+        if (d < absoluteStartTime) {
+            absoluteStartTime = d;
+        }
+    });
+
     weatherData.forEach(r => {
         const cycle = r.n_cycle?.toString().trim();
+        const phase = r.Phase?.toString().trim();
         if (!cycle) return;
         if (!groupedData[cycle]) groupedData[cycle] = [];
+
+        const currentTime = parseDate(r.dummy_date).getTime();
+        const diffTime = currentTime - absoluteStartTime;
+        const elapsedDays = diffTime / (1000 * 60 * 60 * 24);
+
         groupedData[cycle].push({
-            date: new Date(r.dummy_date),
+            day_index: elapsedDays, // Store the relative day number
             tmean: (r.TMIN + r.TMAX) / 2,
-            rain: r.RAIN
+            rain: r.RAIN,
+            Phase: phase
         });
     });
+    let ensoBoundaries = [];
+    Object.keys(groupedData).forEach(cycle => {
+        const cycleData = groupedData[cycle];
+        const boundaries = detectEnsoBoundaries(cycleData, cycle);
+        ensoBoundaries = ensoBoundaries.concat(boundaries);
+    });
+    
 
-    Object.values(groupedData).forEach(arr => arr.sort((a, b) => a.date - b.date));
+    const oniDataNino = ensoBoundaries.filter(row => row['oni'] === 'El Niño');
+    const oniDataNina = ensoBoundaries.filter(row => row['oni'] === 'La Niña');
 
+    
+    const oniAreasByCycleNino = buildOniAreas(oniDataNino);
+    const oniAreasByCycleNina = buildOniAreas(oniDataNina);
+    
     const cycleBaseColors = ['#377eb8', '#4daf4a', '#ff7f00', '#984ea3', '#e41a1c'];
     const series = [];
+    
     series.push({
-        name: 'Flowering dates',
-        type: 'line',
-        data: [],
-        symbol: 'none',
-        lineStyle: {
-            type: 'dotted',
-            width: 2,
-            color: '#d31272'
-        },
-        toolbar: { show: false }
-    });
+            name: 'Flowering dates',
+            type: 'line',
+            data: [], // Crucial: No data to plot
+            symbol: 'none',
+            lineStyle: {
+                type: 'dotted', // Match your markLine style
+                width: 2,
+                color: '#d31272' // Match your markLine color
+            },
+            // IMPORTANT: Must be in the series array
+            z: 0, 
+            silent: true,
+            tooltip: { show: false }
+        });
 
     Object.keys(groupedData).forEach((cycle, colorIndex) => {
         const values = groupedData[cycle];
-        console.log("Cycle:", cycle, "Base Year:", values[0].date);
+        
         const baseColor = cycleBaseColors[colorIndex % cycleBaseColors.length];
         const tmeanColor = darkenColor(baseColor, 0.2);
         const rainColor = baseColor;
-
-        //const baseYear = new Date(values[0].date + "T00:00").getFullYear();
-        const fl_dates = floweringData
-            .filter(d => d['n_cycle']?.toString() === cycle && d['daytoflower'] >= 1)
-            .map(d => new Date(d.nyear_month_day.replace(/-/g, '/')));
-
+        
+        const fl_dates = weatherData
+            .filter(d => d['n_cycle']?.toString() === cycle && d['DayFl'] >= 1)
+            .map(d => {
+                const flTime = parseDate(d.dummy_date).getTime();
+                const diffTime = flTime - absoluteStartTime;
+                return diffTime / (1000 * 60 * 60 * 24); // Convert to relative days
+            });
+        
         const markAreasNino = makeMarkAreas(oniAreasByCycleNino[cycle]);
         const markAreasNina = makeMarkAreas(oniAreasByCycleNina[cycle]);
-
+        
         series.push(
             {
-                name: `ciclo ${cycle}`,
+                name: `escenario ${cycle}`,
                 type: 'line',
-                data: values.map(v => [v.date, v.tmean]),
+                data: values.map(v => [v.day_index, v.tmean]),
                 itemStyle: { color: tmeanColor },
                 showSymbol: false,
                 markLine: {
@@ -212,10 +275,10 @@ async function draw_potentialyieldweather() {
                 }
             },
             {
-                name: `ciclo ${cycle}`,
+                name: `escenario ${cycle}`,
                 type: 'bar',
                 yAxisIndex: 1,
-                data: values.map(v => [v.date, v.rain]),
+                data: values.map(v => [v.day_index, v.rain]),
                 itemStyle: { color: rainColor, opacity: 0.3 },
                 markArea: {
                     silent: true,
@@ -225,10 +288,12 @@ async function draw_potentialyieldweather() {
             }
         );
     });
-
-    const legendData = Object.keys(groupedData).map(c => 'ciclo ' + c);
+    const scenarioNames = Object.keys(groupedData).map(c => 'escenario ' + c);
+    const legendData = ['Flowering dates'].concat(scenarioNames);
+    //const legendData = Object.keys(groupedData).map(c => 'escenario ' + c);
+    
     const legendSelected = legendData.reduce((acc, name) => {
-        acc[name] = (name === 'ciclo 1');
+        acc[name] = (name === 'escenario 1' || name === 'Flowering dates'); 
         return acc;
     }, {});
 
@@ -239,32 +304,45 @@ async function draw_potentialyieldweather() {
             trigger: 'axis',
             axisPointer: { type: 'shadow' },
             formatter: params => {
-                const date = new Date(params[0].value[0]).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
-                let tooltipText = `<b>${date}</b><br/>`;
-                params.forEach(p => {
-                    const seriesName = p.seriesName;
-                    const value = p.value[1].toFixed(1);
-                    const marker = p.marker;
-                    if (p.componentSubType === 'line') tooltipText += `${marker} Temp: ${value} °C<br/>`;
-                    if (p.componentSubType === 'bar') tooltipText += `${marker} Rain: ${value} mm<br/>`;
-                });
-                return tooltipText;
-            }
+            
+            const elapsedDays = params[0].value[0];
+            
+            const elapsedMilliseconds = elapsedDays * 24 * 60 * 60 * 1000;
+            
+            const reconstructedTimestamp = absoluteStartTime + elapsedMilliseconds;
+            
+            
+            const date = new Date(reconstructedTimestamp);
+
+            const year = date.getFullYear().toString().slice(-2);
+            const month = date.toLocaleString('en-GB', { month: 'short' });
+            const formattedDate = `${month}`
+            
+            let tooltipText = `<b>${formattedDate}</b><br/>`;
+            
+            // Append the Age in Years label for context (optional but useful)
+            const plantAgeInYears = Math.floor(elapsedDays / 365.25);
+            tooltipText += `<span style="color:#666;">Edad del Cultivo: ${plantAgeInYears} años</span><br/>`;
+
+            params.forEach(p => {
+                const value = p.value[1].toFixed(1);
+                const marker = p.marker;
+                if (p.componentSubType === 'line') tooltipText += `${marker} Temp: ${value} °C<br/>`;
+                if (p.componentSubType === 'bar') tooltipText += `${marker} Rain: ${p.value[1].toFixed(2)} mm<br/>`; // Added precision for Rain
+            });
+            return tooltipText;
+        }
         },
-        xAxis: { type: "time", name: "Ciclo del Café (años)", nameLocation: "center", nameGap: 40,
+        xAxis: { type: "value", name: "Edad del Cultivo (años)", nameLocation: "center", nameGap: 40,
+            interval: 365,
             axisLabel: {
                         formatter: value => {
-                            const d = new Date(value);
-                            //const month = String(d.getMonth() + 1).padStart(2, "0");
-                            const month = d.toLocaleString('en-US', { month: 'short' });
-                            const year = d.getFullYear().toString().slice(-2);
-                            //return `Año ${year} ${month}`
-                            return `${year}`
-                            //return `${month}-${year}`;
+                            const plantAgeInYears =  value / (365.25);
+                            return `${Math.round(plantAgeInYears)}`;
                         },
                         fontSize: 13
-                    }
-        },
+                    },
+                },
         yAxis: [
             { type: "value", name: "Temperatura (°C)", nameLocation: "middle", nameGap: 50 },
             { type: "value", name: "Precipitación (mm)", position: "right", nameLocation: "middle", nameGap: 60 }
@@ -296,7 +374,7 @@ function renderChart(rawData) {
     const rowHeightPct = 50 / n_cycles;
     const gapPct = 2;
     const colors = { 0: "#d31272", 1: "#e9e9e9", 2: "#fc8d59", 3: "#91bfdb" };
-    const phaseLabels = { 0: "Flowering", 1: "Neutral", 2: "El Niño", 3: "La Niña" };
+    const phaseLabels = { 0: "Floración", 1: "Neutral", 2: "El Niño", 3: "La Niña" };
 
     const gridDefinitions = [], xAxisDefinitions = [], yAxisDefinitions = [], seriesDefinitions = [];
 
@@ -324,35 +402,53 @@ function renderChart(rawData) {
         const boxStats = calculateBoxPlotStats(boxDataRaw);
         const boxDetails = df.filter(r => r['DayHarv(1)'] > 0).map(r => ({ date: r.HDAT, value: r.harvDM_f_hay }));
 
-        const topPos = (5 + index * (rowHeightPct + gapPct)) + "%";
+        const topPos = (7 + index * (rowHeightPct + gapPct)) + "%";
         const height = rowHeightPct + "%";
         const gridIndexHM = index * 2;
         const gridIndexBP = index * 2 + 1;
 
-        gridDefinitions.push({ left: '8%', width: '65%', top: topPos, height: height, show: false }, { left: '76%', width: '15%', top: topPos, height: height, show: false });
+        gridDefinitions.push({ left: '12%', width: '65%', top: topPos, height: height, show: false }, { left: '80%', width: '15%', top: topPos, height: height, show: false });
 
         const baseYear = new Date(df[0].HDAT + "T00:00").getFullYear();
+        const parseDate = (dateStr) => {
+            const parts = dateStr.split('-');
+            return new Date(parts[0], parts[1] - 1, parts[2]);
+        };
+
+        const startDate = parseDate(df[0].HDAT);
+        const startTime = startDate.getTime();
         xAxisDefinitions.push({
             gridIndex: gridIndexHM,
             type: 'value',
             min: 0,
             max: df.length,
             show: index === n_cycles - 1,
-            name: index === n_cycles - 1 ? 'Ciclo del Café (años)' : '',
+            name: index === n_cycles - 1 ? 'Edad del Cultivo (años)' : '',
             nameLocation: 'middle',
             nameGap: 30,
-            interval: Math.floor(df.length / 6),
+            interval: 365,
+            //interval: Math.floor(df.length / 6),
+            nameTextStyle: { color: '#666', fontSize: 16 },
             axisLabel: {
                 show: index === n_cycles - 1,
                 hideOverlap: true,
                 formatter: value => {
                     const idx = Math.round(value);
                     if (!df[idx]) return "";
-                    const date = new Date(df[idx].HDAT + "T00:00");
-                    const month = date.toLocaleString('en-US', { month: 'short' });
-                    const relativeYear = date.getFullYear() - baseYear;
                     
-                    return `${String(relativeYear).padStart(2, '0')}`;
+                    const currentDate = parseDate(df[idx].HDAT);
+                    const currentTime = currentDate.getTime();
+
+                    const diffTime = currentTime - startTime;
+                    const elapsedDays = diffTime / (1000 * 60 * 60 * 24);
+                    
+                    // --- THE KEY CHANGE IS HERE ---
+                    const plantAgeInYears = elapsedDays / 365.25;
+
+                    const yearLabel = Math.round(plantAgeInYears);
+                    
+                    return `${yearLabel}`;
+                    //return `${Math.floor(plantAgeYears)}`;
                 }
             },
             splitLine: { show: false },
@@ -367,10 +463,10 @@ function renderChart(rawData) {
             axisTick: { show: false },
             axisLine: { show: false },
             axisLabel: { show: false },
-            name: `Ciclo ${cycle}`,
+            name: `Escenario ${cycle}`,
             nameLocation: 'middle',
             nameRotate: 0,
-            nameGap: 35,
+            nameGap: 50,
             nameTextStyle: { align: 'middle', verticalAlign: 'middle', color: '#666', fontSize: 16 }
         });
 
@@ -384,7 +480,7 @@ function renderChart(rawData) {
             name: index === 0 ? 'Producción (kg/ha)' : '',
             nameLocation: 'middle',
             nameGap: 25,
-            nameTextStyle: { color: '#666' },
+            nameTextStyle: { color: '#666' , fontSize: 16},
             axisLabel: { show: index === 0, color: '#666' },
             axisTick: { show: index === 0 },
             axisLine: { show: index === 0, lineStyle: { color: '#ccc' } },
@@ -446,14 +542,16 @@ function renderChart(rawData) {
             dimension: 2,
             categories: [0, 1, 2, 3],
             pieces: [
-                { value: 0, label: 'Flowering', color: colors[0] },
+                { value: 0, label: 'Floración', color: colors[0] },
                 { value: 1, label: 'Neutral', color: colors[1] },
                 { value: 2, label: 'El Niño', color: colors[2] },
                 { value: 3, label: 'La Niña', color: colors[3] }
             ],
-            orient: 'vertical',
-            right: 10,
-            top: 'center',
+            orient: 'horizontal',
+            //right: 0,
+            top: 12,
+            left: 100,
+            textStyle: { fontSize: 14 },
             seriesIndex: seriesDefinitions.map((s, i) => s.type === 'heatmap' ? i : -1).filter(i => i >= 0)
         },
         grid: gridDefinitions,
@@ -474,8 +572,8 @@ function renderChart(rawData) {
             // Example: cycle 1 uses series indices 0,1,2, cycle 2 uses 3,4,5 etc.
             // A simpler way is to get the cycle number from the y-axis name.
             const yAxisName = params.seriesName;
-            console.log("Clicked Series Name:", yAxisName);
-            // Extract the cycle number from a name like "Ciclo 1" or "ciclo 1"
+            
+            
             const cycleMatch = yAxisName.match(/(\d+)/);
             if (cycleMatch[0] == 0) {var sel = 1;}
             if (cycleMatch[0] == 3) {var sel = 2;}
@@ -485,7 +583,7 @@ function renderChart(rawData) {
 
             if (cycleMatch) {
                 const selectedCycle = sel;
-                console.log("Clicked Cycle:", selectedCycle);
+            
                 triggerWeatherChartUpdate(selectedCycle);
             }
         }
@@ -496,11 +594,13 @@ function renderChart(rawData) {
 
 // --- Main Execution ---
 async function main() {
-  const oniData = await readcsv('data/coffee_oni.csv');
+    const texture = 'clayloam'; 
+    const weatherData = await readcsv("data/weatherbytreatment_" + texture + ".csv");
+    const oniData = await readcsv("data/yield_data_" + texture + ".csv");
   
   // Render both charts
   renderChart(oniData);
-  draw_potentialyieldweather();
+  draw_potentialyieldweather(weatherData);
 }
 
 main();
