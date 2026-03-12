@@ -126,33 +126,56 @@ const detectEnsoBoundaries = (cycleData, cycleNumber) => {
     const boundaries = [];
     const dfLength = cycleData.length;
 
-    if (dfLength < 3) return boundaries; // Need at least 3 data points (prev, current, next)
+    if (dfLength === 0) return boundaries;
 
-    for (let i = 1; i < dfLength - 1; i++) {
-        const current = cycleData[i];
+    // 1. Check if the very first point starts an event
+    if (cycleData[0].Phase !== 'Neutral') {
+        boundaries.push({
+            oni: cycleData[0].Phase,
+            date: cycleData[0].day_index,
+            period: 'start',
+            n_cycle: cycleNumber
+        });
+    }
+
+    // 2. Loop through to find transitions between phases
+    for (let i = 1; i < dfLength; i++) {
         const prev = cycleData[i - 1];
-        const next = cycleData[i + 1];
+        const current = cycleData[i];
                
-        if (current.Phase === 'Neutral') {
-            continue;
-        }
-
-        if (prev.Phase === 'Neutral') {
+        // If the phase has changed
+        if (prev.Phase !== current.Phase) {
             
-            boundaries.push({
-                oni: current.Phase,
-                date: current.day_index, // Use the current date for the START boundary
-                period: 'start',
-                n_cycle: cycleNumber // Add cycle number for later grouping
-            });
-        } else if (next.Phase === 'Neutral') {
-            boundaries.push({
-                oni: current.Phase,
-                date: next.day_index, // Use the next date for the END boundary
-                period: 'end',
-                n_cycle: cycleNumber
-            });
+            // End the previous phase (if it wasn't Neutral)
+            if (prev.Phase !== 'Neutral') {
+                boundaries.push({
+                    oni: prev.Phase,
+                    date: current.day_index, // Make it meet the start of the next phase exactly
+                    period: 'end',
+                    n_cycle: cycleNumber
+                });
+            }
+            
+            // Start the new phase (if it isn't Neutral)
+            if (current.Phase !== 'Neutral') {
+                boundaries.push({
+                    oni: current.Phase,
+                    date: current.day_index,
+                    period: 'start',
+                    n_cycle: cycleNumber
+                });
+            }
         }
+    }
+    
+    // 3. Check if the very last point ends an event (to cap it off)
+    if (cycleData[dfLength - 1].Phase !== 'Neutral') {
+        boundaries.push({
+            oni: cycleData[dfLength - 1].Phase,
+            date: cycleData[dfLength - 1].day_index,
+            period: 'end',
+            n_cycle: cycleNumber
+        });
     }
 
     return boundaries;
@@ -491,6 +514,7 @@ function renderChart(rawData) {
 
         seriesDefinitions.push(
             {
+                name: String(cycle),
                 type: 'heatmap',
                 xAxisIndex: gridIndexHM,
                 yAxisIndex: gridIndexHM,
@@ -508,6 +532,7 @@ function renderChart(rawData) {
                 }
             },
             {
+                name: String(cycle),
                 type: 'boxplot',
                 xAxisIndex: gridIndexBP,
                 yAxisIndex: gridIndexBP,
@@ -522,16 +547,18 @@ function renderChart(rawData) {
             }
         );
 
-        if (boxStats.outliers.length > 0) {
-            seriesDefinitions.push({
-                type: 'scatter',
-                xAxisIndex: gridIndexBP,
-                yAxisIndex: gridIndexBP,
-                data: boxStats.outliers,
-                itemStyle: { color: '#000', borderColor: '#000' },
-                symbolSize: 4
-            });
-        }
+        // --- OUTLIERS REMOVED ---
+        // if (boxStats.outliers.length > 0) {
+        //     seriesDefinitions.push({
+        //         name: String(cycle),
+        //         type: 'scatter',
+        //         xAxisIndex: gridIndexBP,
+        //         yAxisIndex: gridIndexBP,
+        //         data: boxStats.outliers,
+        //         itemStyle: { color: '#000', borderColor: '#000' },
+        //         symbolSize: 4
+        //     });
+        // }
     });
 
     const option = {
@@ -567,23 +594,10 @@ function renderChart(rawData) {
     // --- ATTACH CLICK LISTENER ---
     potentialyieldoniChart.on('click', function (params) {
         if (params.componentType === 'series') {
-            // Your logic creates multiple series per cycle. 
-            // We need to find which 'cycle' this series belongs to.
-            // Example: cycle 1 uses series indices 0,1,2, cycle 2 uses 3,4,5 etc.
-            // A simpler way is to get the cycle number from the y-axis name.
-            const yAxisName = params.seriesName;
-            
-            
-            const cycleMatch = yAxisName.match(/(\d+)/);
-            if (cycleMatch[0] == 0) {var sel = 1;}
-            if (cycleMatch[0] == 3) {var sel = 2;}
-            if (cycleMatch[0] == 5) {var sel = 3;}
-            if (cycleMatch[0] == 8) {var sel = 4;}
-            if (cycleMatch[0] == 11) {var sel = 5;}
 
-            if (cycleMatch) {
-                const selectedCycle = sel;
+            const selectedCycle = params.seriesName;
             
+            if (selectedCycle) {
                 triggerWeatherChartUpdate(selectedCycle);
             }
         }
