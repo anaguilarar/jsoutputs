@@ -1,195 +1,55 @@
 <!DOCTYPE html>
-<html>
-    <head>
-        <title>ECharts Scatter with Dynamic Recommendations</title>
-        <meta charset="UTF-8">
-        <style>
-            /* ... (keep your existing body, #chart-container styles) ... */
-            body {
-                font-family: sans-serif;
-                line-height: 1.5;
-            }
-            #plot-echart {
-                width: 180%;
-                max-width: 800px;
-                height: 450px;
-                margin: 20px auto;
-                border: 1px solid #eee;
-                box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-            }
-            #coffee_potential_yield_chart {
-                width: 180%;
-                max-width: 800px;
-                height: 450px;
-                margin: 20px auto;
-                border: 1px solid #eee;
-                box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-            }
-            
-            #chartPotentialyieldweather {
-                width: 180%;
-                max-width: 800px;
-                height: 450px;
-                margin: 20px auto;
-                border: 1px solid #eee;
-                box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-            }
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>QUEFTS P-K yield response</title>
+    <style>
+        body { font-family: sans-serif; line-height: 1.5; max-width: 1000px; margin: 20px auto; padding: 0 16px; }
 
-            #chart-container {
-                width: 180%;
-                max-width: 800px;
-                height: 450px;
-                margin: 20px auto;
-                border: 1px solid #eee;
-                box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-            }
-    
-            #chart-coffee-container {
-                width: 180%;
-                max-width: 800px;
-                height: 450px;
-                margin: 20px auto;
-                border: 1px solid #eee;
-                box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-            }
-            #coffee_potential_yield_chart_avg {
-                width: 180%;
-                max-width: 800px;
-                height: 450px;
-                margin: 20px auto;
-                border: 1px solid #eeeeee3b;
-                box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-            }
-            #chartPotentialyieldoni {
-                width: 280%;
-                max-width: 1000px;
-                height: 450px;
-                margin: 30px auto;
-                border: 1px solid #eeeeee3b;
-                box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-            }
+        #controls { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: end; padding: 12px; border: 1px solid #ddd; border-radius: 5px; }
+        #controls label { display: block; font-size: 12px; color: #555; }
+        #controls select { min-width: 150px; padding: 4px; }
 
-            #rain_barplot {
-                width: 180%;
-                max-width: 1000px;
-                height: 500px;
-                max-height: 500px;
-                margin: 10px auto;
-                border: 1px solid #eeeeee56;
-                box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-            }
+        #status-log { font-family: monospace; font-size: 13px; color: #b00020; margin: 8px 0; }
+        #summary { font-size: 14px; margin: 12px 0 0 0; }
 
-            /* Container for the recommendation boxes */
-            #recommendations-container {
-                width: 80%;
-                max-width: 700px;
-                margin: 30px auto 20px auto;
+        #chartQueftsPK {
+            width: 100%; height: 560px; margin: 12px 0 20px 0;
+            border: 1px solid #eee; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        }
+        .div_small { font-size: 13px; color: #555; }
+        .d-none { display: none !important; }   /* same class name the production page (Bootstrap) uses */
 
-                display: flex; 
-                justify-content: space-between;
-
-                flex-wrap: wrap; 
-            }
-    
-            /* Style for each individual recommendation box */
-            .recommendation-box {
-                border: 1px solid #19923e;
-                background-color: #a4ff3d1c;
-                padding: 15px;
-                border-radius: 5px;
-                flex-basis: 5%;  
-                margin-bottom: 15px;
-                min-width: 160px; 
-            }
-    
-            /* Style for the title within each box */
-            .recommendation-box h4 {
-                margin-top: 0;
-                margin-bottom: 8px;
-                color: #086317;
-            }
-            
-            /* Style for the title within each box */
-            .note-box h4 {
-                margin-top: 0;
-                margin-bottom: 8px;
-                color: #000000;
-            }
-
-    
-        </style>
-    </head>
+        #div-quefts-curves { display: flex; gap: 16px; }
+        #chartQueftsCurveP, #chartQueftsCurveK {
+            flex: 1; min-width: 0; height: 380px;
+            border: 1px solid #eee; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
 <body>
-    
+    <h2>Respuesta del rendimiento a fósforo y potasio (QUEFTS)</h2>
 
-    <!-- <div id="rain_barplot"></div> -->
+    <div id="controls">
+        <div><label for="texture">Textura del suelo</label><select id="texture"></select></div>
+        <div><label for="planting-date">Fecha de siembra</label><select id="planting-date"></select></div>
+        <div><label for="nitrogen">Nitrógeno total (kg/ha)</label><select id="nitrogen"></select></div>
+        <div><label for="show-value">Mostrar</label><select id="show-value"></select></div>
+    </div>
 
-    <!-- 
-    <div id="chart-coffee-container"></div>
-    <div id="coffee_potential_yield_chart_avg"></div>
-    <div id="coffee_potential_yield_chart"></div>
-    <div id="plot-echart"></div>
-    <div id="chart-container"></div>
-        <script src="scripts/js/nitrogen_scatter_plot_coffee.js"></script>
-    <div id="chart-coffee-container"></div>
-    
-    <script src="scripts/js/averaged_hdat_crop_yield.js"></script>
-    <div id="coffee_potential_yield_chart"></div>
-    <div id="potential_yield_chart"></div> -->
-    <!-- Create a div where the graph will take place -->
-    <!--<div id="my_dataviz"></div> -->
-    <!-- <div id="exceedance"></div>
-    
-    <select id="selectbutton"></select>
-    <div id="exceedance_agperiods"></div> -->
+    <div id="status-log"></div>
+    <p id="summary"></p>
+    <div id="chartQueftsPK"></div>
+    <p class="div_small" id="curves-hint">Haga clic en una celda para ver las curvas de respuesta a P y K con la variación entre años.</p>
+    <div id="div-quefts-curves" class="d-none">
+        <div id="chartQueftsCurveP"></div>
+        <div id="chartQueftsCurveK"></div>
+    </div>
+    <p class="div_small">La ganancia es el rendimiento adicional frente a usar solo la fertilización del manejo (P y K adicionales = 0), calculada año por año. Las bandas muestran su variación entre los años simulados (clima), no el error del modelo.</p>
+    <p class="div_small" id="note"></p>
 
-    <!-- Scripts -->
-    <!-- <script src='scripts/js/coffee_pot_yield_plot.js'></script>
-    <script src='scripts/js/heatmap.js'></script>
-    <script src='scripts/js/exceendance_plots.js'></script>
-    <script src='scripts/js/exceedance_plots_agperiods.js'>
-    
-    
-    <script src="scripts/js/potential_yield_plot.js"></script>
-    <script src="scripts/js/coffee_plot_yield.js"></script>
-        <script src='scripts/js/coffee_plot_yield.js'></script>
-    <script src="scripts/js/averaged_hdat_crop_yield.js"></script>
-    </script> -->
-    <!-- <div id="coffee_potential_yield_chart_avg"></div> -->
-    <div id="chartPotentialyieldoni" style="width: 100%; height: 800px;"></div>
-    <div id="chartPotentialyieldweather"></div>
-    
-    <!-- <div id="chart-container"></div>
-    <div id="recommendations-container">
-        <div class="recommendation-box">
-            <h4><strong>Aplicación de Nitrógeno durante establecimiento:</strong></h4>
-            <p id="rec-box-1-content">Loading recommendation...</p>
-        </div>
-        <div class="recommendation-box">
-            <h4><strong>Primera Aplicación después de Floración:</strong></h4>
-            <p id="rec-box-2-content">Loading recommendation...</p>
-        </div>
-        <div class="recommendation-box">
-            <h4><strong>Segunda Aplicación después de Floración:</strong></h4>
-            <p id="rec-box-3-content">Loading recommendation...</p>
-        </div>
-        <div class="note-box">
-            <h4><strong>Recomendaciones:</strong></h4>
-            <p id="rec-note-content">Loading recommendation...</p>
-        </div>
-    </div> -->
-    <!-- <script src="scripts/js/nitrogen_scatter_plot_.js"></script> -->
-     <script src="https://cdn.jsdelivr.net/npm/echarts@5"></script>
-    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js"></script>
-    <script src="scripts/js/coffee_seasonality_both.js"></script> 
-    <!-- <script src="scripts/js/averaged_hdat_crop_yield.js"></script> -->
-    <!-- <script src="scripts/js/weather_crop_pattern.js"></script> -->
-    <script src="https://cdn.jsdelivr.net/npm/d3-regression@1.3.10/dist/d3-regression.min.js"></script>
-    
-    
-    <!-- <script src="scripts/js/end_cycle_precipitation.js"></script> -->
-    
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="scripts/js/quefts_pk_heatmap.js"></script>
 </body>
 </html>

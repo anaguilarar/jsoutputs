@@ -320,7 +320,7 @@ function formatDateString(dateStr, language) {
   }
   
 
-const soil_texture = 'clayloam';
+const soil_texture = 'loam';
 let month_day_key = "08-15"; 
 const crop = 'bean';
 //const cultivar = 'IB1072'; 

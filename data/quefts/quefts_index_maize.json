@@ -1,0 +1,223 @@
+{
+ "crop": "maize",
+ "n_kg_ha": [
+  0.0
+ ],
+ "p_kg_ha": [
+  0.0,
+  20.0,
+  40.0,
+  60.0,
+  80.0,
+  100.0,
+  120.0
+ ],
+ "k_kg_ha": [
+  0.0,
+  20.0,
+  40.0,
+  60.0,
+  80.0,
+  100.0,
+  120.0
+ ],
+ "base_npk_kg_ha": {
+  "sandyloam": {
+   "n": 64.0,
+   "p": 0.0,
+   "k": 10.0
+  },
+  "loam": {
+   "n": 64.0,
+   "p": 0.0,
+   "k": 10.0
+  },
+  "sandyclayloam": {
+   "n": 64.0,
+   "p": 0.0,
+   "k": 10.0
+  }
+ },
+ "files": [
+  {
+   "file": "quefts_response_maize_sandyloam_trno09.csv",
+   "texture": "sandyloam",
+   "TRNO": 9,
+   "planting_day": "03-28"
+  },
+  {
+   "file": "quefts_response_maize_sandyloam_trno10.csv",
+   "texture": "sandyloam",
+   "TRNO": 10,
+   "planting_day": "04-04"
+  },
+  {
+   "file": "quefts_response_maize_sandyloam_trno11.csv",
+   "texture": "sandyloam",
+   "TRNO": 11,
+   "planting_day": "04-11"
+  },
+  {
+   "file": "quefts_response_maize_sandyloam_trno12.csv",
+   "texture": "sandyloam",
+   "TRNO": 12,
+   "planting_day": "04-18"
+  },
+  {
+   "file": "quefts_response_maize_sandyloam_trno21.csv",
+   "texture": "sandyloam",
+   "TRNO": 21,
+   "planting_day": "06-20"
+  },
+  {
+   "file": "quefts_response_maize_sandyloam_trno22.csv",
+   "texture": "sandyloam",
+   "TRNO": 22,
+   "planting_day": "06-27"
+  },
+  {
+   "file": "quefts_response_maize_sandyloam_trno23.csv",
+   "texture": "sandyloam",
+   "TRNO": 23,
+   "planting_day": "07-04"
+  },
+  {
+   "file": "quefts_response_maize_sandyloam_trno24.csv",
+   "texture": "sandyloam",
+   "TRNO": 24,
+   "planting_day": "07-11"
+  },
+  {
+   "file": "quefts_response_maize_sandyloam_trno25.csv",
+   "texture": "sandyloam",
+   "TRNO": 25,
+   "planting_day": "07-18"
+  },
+  {
+   "file": "quefts_response_maize_sandyloam_trno26.csv",
+   "texture": "sandyloam",
+   "TRNO": 26,
+   "planting_day": "07-25"
+  },
+  {
+   "file": "quefts_response_maize_loam_trno09.csv",
+   "texture": "loam",
+   "TRNO": 9,
+   "planting_day": "03-28"
+  },
+  {
+   "file": "quefts_response_maize_loam_trno10.csv",
+   "texture": "loam",
+   "TRNO": 10,
+   "planting_day": "04-04"
+  },
+  {
+   "file": "quefts_response_maize_loam_trno11.csv",
+   "texture": "loam",
+   "TRNO": 11,
+   "planting_day": "04-11"
+  },
+  {
+   "file": "quefts_response_maize_loam_trno12.csv",
+   "texture": "loam",
+   "TRNO": 12,
+   "planting_day": "04-18"
+  },
+  {
+   "file": "quefts_response_maize_loam_trno21.csv",
+   "texture": "loam",
+   "TRNO": 21,
+   "planting_day": "06-20"
+  },
+  {
+   "file": "quefts_response_maize_loam_trno22.csv",
+   "texture": "loam",
+   "TRNO": 22,
+   "planting_day": "06-27"
+  },
+  {
+   "file": "quefts_response_maize_loam_trno23.csv",
+   "texture": "loam",
+   "TRNO": 23,
+   "planting_day": "07-04"
+  },
+  {
+   "file": "quefts_response_maize_loam_trno24.csv",
+   "texture": "loam",
+   "TRNO": 24,
+   "planting_day": "07-11"
+  },
+  {
+   "file": "quefts_response_maize_loam_trno25.csv",
+   "texture": "loam",
+   "TRNO": 25,
+   "planting_day": "07-18"
+  },
+  {
+   "file": "quefts_response_maize_loam_trno26.csv",
+   "texture": "loam",
+   "TRNO": 26,
+   "planting_day": "07-25"
+  },
+  {
+   "file": "quefts_response_maize_sandyclayloam_trno09.csv",
+   "texture": "sandyclayloam",
+   "TRNO": 9,
+   "planting_day": "03-28"
+  },
+  {
+   "file": "quefts_response_maize_sandyclayloam_trno10.csv",
+   "texture": "sandyclayloam",
+   "TRNO": 10,
+   "planting_day": "04-04"
+  },
+  {
+   "file": "quefts_response_maize_sandyclayloam_trno11.csv",
+   "texture": "sandyclayloam",
+   "TRNO": 11,
+   "planting_day": "04-11"
+  },
+  {
+   "file": "quefts_response_maize_sandyclayloam_trno12.csv",
+   "texture": "sandyclayloam",
+   "TRNO": 12,
+   "planting_day": "04-18"
+  },
+  {
+   "file": "quefts_response_maize_sandyclayloam_trno21.csv",
+   "texture": "sandyclayloam",
+   "TRNO": 21,
+   "planting_day": "06-20"
+  },
+  {
+   "file": "quefts_response_maize_sandyclayloam_trno22.csv",
+   "texture": "sandyclayloam",
+   "TRNO": 22,
+   "planting_day": "06-27"
+  },
+  {
+   "file": "quefts_response_maize_sandyclayloam_trno23.csv",
+   "texture": "sandyclayloam",
+   "TRNO": 23,
+   "planting_day": "07-04"
+  },
+  {
+   "file": "quefts_response_maize_sandyclayloam_trno24.csv",
+   "texture": "sandyclayloam",
+   "TRNO": 24,
+   "planting_day": "07-11"
+  },
+  {
+   "file": "quefts_response_maize_sandyclayloam_trno25.csv",
+   "texture": "sandyclayloam",
+   "TRNO": 25,
+   "planting_day": "07-18"
+  },
+  {
+   "file": "quefts_response_maize_sandyclayloam_trno26.csv",
+   "texture": "sandyclayloam",
+   "TRNO": 26,
+   "planting_day": "07-25"
+  }
+ ]
+}

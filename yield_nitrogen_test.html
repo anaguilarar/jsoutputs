@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Local test: potential yield click -> nitrogen scatter</title>
+    <style>
+        body { font-family: sans-serif; line-height: 1.5; max-width: 1000px; margin: 20px auto; padding: 0 16px; }
+        .d-none { display: none !important; }   /* same class name the production page (Bootstrap) uses */
+
+        #controls { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: end; padding: 12px; border: 1px solid #ddd; border-radius: 5px; }
+        #controls label { display: block; font-size: 12px; color: #555; }
+        #controls input[type="text"] { width: 150px; padding: 4px; }
+        #controls input.wide { width: 260px; }
+        #controls button { padding: 6px 14px; }
+
+        #status-log { font-family: monospace; font-size: 13px; background: #f7f7f7; border: 1px solid #ddd; border-radius: 5px; padding: 10px; margin: 12px 0; max-height: 220px; overflow-y: auto; }
+        #status-log div { white-space: pre-wrap; }
+        #status-log .ok { color: #086317; }
+        #status-log .warn { color: #a05a00; }
+        #status-log .error { color: #b00020; font-weight: bold; }
+
+        #chartPotentialyield, #chartNitrogenscatter {
+            width: 100%; height: 450px; margin: 20px 0;
+            border: 1px solid #eee; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        }
+        #recommendations-container { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+        .recommendation-box { border: 1px solid #19923e; background-color: #a4ff3d1c; padding: 15px; border-radius: 5px; flex: 1; min-width: 160px; }
+        .recommendation-box h4 { margin: 0 0 8px 0; color: #086317; }
+        .note-box { flex-basis: 100%; }
+        .note-box h4 { margin: 0 0 8px 0; }
+        .div_small { font-size: 13px; }
+    </style>
+</head>
+<body>
+    <h2>Local test: potential yield click &rarr; nitrogen scatter</h2>
+
+    <!-- These inputs use the same ids/names the production handler reads with jQuery -->
+    <div id="controls">
+        <div>
+            <label>Soil texture</label>
+            <span id="texture-options">
+                <input type="radio" name="texture" value="loam" id="tx-loam" checked> <label for="tx-loam" style="display:inline">loam</label>
+                <input type="radio" name="texture" value="clayloam" id="tx-clayloam"> <label for="tx-clayloam" style="display:inline">clayloam</label>
+                <input type="radio" name="texture" value="clay" id="tx-clay"> <label for="tx-clay" style="display:inline">clay</label>
+                <input type="radio" name="texture" value="siltyclayloam" id="tx-siltyclayloam"> <label for="tx-siltyclayloam" style="display:inline">siltyclayloam</label>
+            </span>
+        </div>
+        <div><label for="crop">Crop (#crop)</label><input type="text" id="crop" value="bean"></div>
+        <div><label for="variety">Cultivar (#variety)</label><input type="text" id="variety" value="IB0006"></div>
+        <div><label for="aldea">Geocode (#aldea)</label><input type="text" id="aldea" value="070116"></div>
+        <div><label for="pathresults">Soil table folder (#pathresults)</label><input type="text" id="pathresults" class="wide" value="data/nitrogen/"></div>
+        <div><label for="local-yield-path">Yield CSV folder (local only)</label><input type="text" id="local-yield-path" value="data/"></div>
+        <div><label for="local-nitrogen-path">Nitrogen JSON folder (local only)</label><input type="text" id="local-nitrogen-path" class="wide" value="data/nitrogen/"></div>
+        <div><button id="btn-reload">Reload</button></div>
+    </div>
+
+    <div id="status-log"></div>
+
+    <p>Click a point of the potential yield line to run the nitrogen analysis for that planting date.</p>
+    <div id="chartPotentialyield"></div>
+
+    <div id="div-session-potentialyield" class="d-none">
+        <div id="chartNitrogenscatter" class="d-none"></div>
+
+        <div id="nitrogen_scatter" class="d-none">
+            <div id="recommendations-container">
+                <div class="recommendation-box" id="div-recommendation-box-1">
+                    <h4>Aplicación de Nitrógeno durante establecimiento:</h4>
+                    <p id="rec-box-1-content"></p>
+                </div>
+                <div class="recommendation-box" id="div-recommendation-box-2">
+                    <h4>Primera Aplicación después de Floración:</h4>
+                    <p id="rec-box-2-content"></p>
+                </div>
+                <div class="recommendation-box" id="div-recommendation-box-3">
+                    <h4>Segunda Aplicación después de Floración:</h4>
+                    <p id="rec-box-3-content"></p>
+                </div>
+                <div class="note-box">
+                    <h4>Recomendaciones:</h4>
+                    <ul id="rec-note-content"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-regression@1.3.10/dist/d3-regression.min.js"></script>
+    <script src="scripts/js/yield_nitrogen_test.js"></script>
+</body>
+</html>
